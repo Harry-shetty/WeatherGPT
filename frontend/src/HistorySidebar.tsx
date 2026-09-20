@@ -99,13 +99,10 @@ export default function HistorySidebar({ open, setOpen }: { open: boolean, setOp
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-              <div
-                style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #A78BFA 0%, #F472B6 100%)',
-                }}
+              <img
+                src="/logo.png"
+                alt="WeatherGPT"
+                style={{ width: '26px', height: '26px', objectFit: 'contain' }}
               />
               <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--fg)', letterSpacing: '-0.01em' }}>
                 History

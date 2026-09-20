@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
         '/api/sachet': {
           target: 'https://sachet.ndma.gov.in',
           changeOrigin: true,
+          secure: false,
           rewrite: (path) => path.replace(/^\/api\/sachet/, ''),
         },
       },

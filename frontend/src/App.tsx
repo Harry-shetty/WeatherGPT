@@ -1,8 +1,11 @@
 import ReactMarkdown from "react-markdown";
-import { model } from "./gemini";
+import { model, fallbackModel } from "./gemini";
 import { useState, useEffect, useRef } from "react";
 import ParticleText from "./ParticleText";
+import LoadingSpinner from "./LoadingSpinner";
 import HistorySidebar from "./HistorySidebar";
+// @ts-ignore
+import ParticleMorph from "./ParticleMorph";
 import { MapContainer, TileLayer, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 // ── Weather particle types ──────────────────────────────────────────────────
@@ -220,7 +223,7 @@ const PLACEHOLDER_QUERIES = [
   "Best time to travel to Barcelona in March?",
 ];
 
-function AnimatedSearchBar({ setCurrentPage }: { setCurrentPage: (page: string) => void }) {
+function AnimatedSearchBar({ setCurrentPage, setInitialQuery }: { setCurrentPage: (page: string) => void, setInitialQuery?: (q: string) => void }) {
   const [query, setQuery] = useState("");
   const [placeholder, setPlaceholder] = useState(PLACEHOLDER_QUERIES[0]);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
@@ -256,25 +259,20 @@ function AnimatedSearchBar({ setCurrentPage }: { setCurrentPage: (page: string) 
             : "0 8px 32px rgba(0,0,0,0.4)",
         }}
       >
-        {/* Weather GPT orb icon */}
-        <div
-          className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
-          style={{
-            background: "linear-gradient(135deg, var(--primary), #7c3aed)",
-            boxShadow: "0 0 16px rgba(79,142,247,0.5)",
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="3" fill="white" />
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </div>
+        {/* Weather GPT logo */}
+        <img src="/logo.png" alt="WeatherGPT" className="flex-shrink-0 w-9 h-9 object-contain" />
 
         <input
           ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && query.trim()) {
+              if (setInitialQuery) setInitialQuery(query.trim());
+              setCurrentPage("Dashboard");
+            }
+          }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
@@ -302,7 +300,10 @@ function AnimatedSearchBar({ setCurrentPage }: { setCurrentPage: (page: string) 
             e.currentTarget.style.boxShadow = "0 4px 16px rgba(79,142,247,0.35)";
             e.currentTarget.style.transform = "translateY(0)";
           }}
-        onClick={() => setCurrentPage("Dashboard")}
+        onClick={() => {
+          if (query.trim() && setInitialQuery) setInitialQuery(query.trim());
+          setCurrentPage("Dashboard");
+        }}
         >
           Ask AI
         </button>
@@ -501,7 +502,6 @@ function ChatDemo() {
   return (
     <div
       className="glass rounded-2xl p-6 overflow-hidden"
-      style={{ maxHeight: 380, overflowY: "auto" }}
     >
       <div className="flex items-center gap-2 mb-5 pb-4" style={{ borderBottom: "1px solid var(--border-color)" }}>
         <div className="w-2 h-2 rounded-full bg-green-400" style={{ boxShadow: "0 0 8px rgba(74,222,128,0.8)" }} />
@@ -517,15 +517,12 @@ function ChatDemo() {
               style={{ animation: "slide-up 0.4s ease both" }}
             >
               {msg.role === "ai" && (
-                <div
-                  className="w-7 h-7 rounded-full flex-shrink-0 mr-3 flex items-center justify-center"
-                  style={{ background: "linear-gradient(135deg, var(--primary), #7c3aed)", marginTop: 2 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="3" fill="white" />
-                    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
+                <img
+                  src="/logo.png"
+                  alt="WeatherGPT"
+                  className="w-7 h-7 flex-shrink-0 mr-3 object-contain"
+                  style={{ marginTop: 2 }}
+                />
               )}
               <div
                 className="max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
@@ -546,12 +543,6 @@ function ChatDemo() {
 }
 
 // ── Stat strip ──────────────────────────────────────────────────────────────
-const STATS = [
-  { value: "50K+", label: "Sensor stations", color: "var(--primary)" },
-  { value: "15M+", label: "Locations covered", color: "#7c3aed" },
-  { value: "99.2%", label: "Forecast accuracy", color: "#06b6d4" },
-  { value: "< 2s", label: "Response time", color: "#10b981" },
-];
 
 function MoonIcon({ className = "" }: { className?: string }) {
   return (
@@ -562,7 +553,7 @@ function MoonIcon({ className = "" }: { className?: string }) {
 }
 
 // ── Navbar ──────────────────────────────────────────────────────────────────
-function Navbar({ isDark, toggleTheme, currentPage, setCurrentPage }: { isDark: boolean; toggleTheme: () => void; currentPage: string; setCurrentPage: (page: string) => void; }) {
+function Navbar({ isDark, toggleTheme, currentPage, setCurrentPage, isSidebarOpen = false }: { isDark: boolean; toggleTheme: () => void; currentPage: string; setCurrentPage: (page: string) => void; isSidebarOpen?: boolean; }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -573,24 +564,27 @@ function Navbar({ isDark, toggleTheme, currentPage, setCurrentPage }: { isDark: 
 
   return (
     <nav
-      className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between px-6 py-3 w-[95%] max-w-6xl rounded-2xl transition-all duration-300 ${scrolled ? 'shadow-xl' : 'shadow-md'}`}
+      className={`fixed top-6 z-50 flex items-center justify-between px-6 py-3 max-w-6xl rounded-2xl transition-all duration-300 ${scrolled ? 'shadow-xl' : 'shadow-md'}`}
       style={{
         background: "var(--nav-bg)",
         backdropFilter: "blur(20px)",
         border: "1px solid var(--border-color)",
+        left: isSidebarOpen && currentPage === "Dashboard" ? "calc(280px + 2.5vw)" : "2.5vw",
+        right: "2.5vw",
+        width: "auto",
+        margin: "0 auto",
       }}
     >
       {/* Logo */}
       <div 
-        className="flex items-center gap-3 cursor-pointer" 
+        className="flex-1 flex items-center justify-start gap-3 cursor-pointer" 
         onClick={() => setCurrentPage("Home")}
       >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: "linear-gradient(135deg, var(--primary), #7c3aed)" }}
-        >
-          <SunIcon className="w-5 h-5 text-white" />
-        </div>
+        <img
+          src="/logo.png"
+          alt="WeatherGPT"
+          className="w-9 h-9 object-contain"
+        />
         <span
           className="font-semibold text-lg tracking-tight"
           style={{ color: "var(--fg)", fontFamily: "var(--font-body)" }}
@@ -600,7 +594,7 @@ function Navbar({ isDark, toggleTheme, currentPage, setCurrentPage }: { isDark: 
       </div>
 
       {/* Nav links */}
-      <div className="hidden md:flex items-center gap-8">
+      <div className="hidden md:flex flex-1 justify-center items-center gap-8">
         {["Home", "Dashboard", "Weather Map"].map((item) => (
           <a
             key={item}
@@ -624,7 +618,7 @@ function Navbar({ isDark, toggleTheme, currentPage, setCurrentPage }: { isDark: 
       </div>
 
       {/* CTA and Theme Toggle */}
-      <div className="flex items-center gap-4">
+      <div className="flex-1 flex justify-end items-center gap-4">
         <button
           onClick={toggleTheme}
           className="p-2 rounded-xl transition-all duration-200"
@@ -638,27 +632,106 @@ function Navbar({ isDark, toggleTheme, currentPage, setCurrentPage }: { isDark: 
           {isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
         </button>
 
-        <button
-          className="px-5 py-2 rounded-xl text-sm font-medium transition-all duration-200"
-          style={{
-            background: "rgba(79,142,247,0.12)",
-            color: "var(--primary)",
-            border: "1px solid rgba(79,142,247,0.25)",
-            fontFamily: "var(--font-body)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(79,142,247,0.2)";
-            e.currentTarget.style.borderColor = "rgba(79,142,247,0.5)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(79,142,247,0.12)";
-            e.currentTarget.style.borderColor = "rgba(79,142,247,0.25)";
-          }}
-        >
-          Get started
-        </button>
+
       </div>
     </nav>
+  );
+}
+
+
+function AnimatedNumber({ value, prefix = "", suffix = "", isFloat = false }: { value: number, prefix?: string, suffix?: string, isFloat?: boolean }) {
+  const [displayValue, setDisplayValue] = useState(0);
+  
+  useEffect(() => {
+    let startTime: number;
+    const duration = 2000;
+    
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = timestamp - startTime;
+      
+      if (progress < duration) {
+        const easeOutQuart = 1 - Math.pow(1 - progress / duration, 4);
+        setDisplayValue(value * easeOutQuart);
+        requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(value);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [value]);
+
+  return (
+    <span>
+      {prefix}
+      {isFloat ? displayValue.toFixed(1) : Math.floor(displayValue)}
+      {suffix}
+    </span>
+  );
+}
+
+function StatsSection() {
+  const [stats, setStats] = useState([
+    { value: 55, prefix: "", suffix: "K+", label: "Sensor stations", color: "var(--primary)", isFloat: false },
+    { value: 18, prefix: "", suffix: "M+", label: "Locations covered", color: "#7c3aed", isFloat: false },
+    { value: 99.2, prefix: "", suffix: "%", label: "Forecast accuracy", color: "#06b6d4", isFloat: true },
+    { value: 1.8, prefix: "< ", suffix: "s", label: "Response time", color: "#10b981", isFloat: true },
+  ]);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const { model } = await import('./gemini');
+        const prompt = `Respond ONLY with a valid JSON array of 4 objects describing current global weather tracking stats. Use realistic values around 50K+, 15M+, 99.2%, <2s.
+Format exactly:
+[
+  { "value": 52, "prefix": "", "suffix": "K+" },
+  { "value": 16, "prefix": "", "suffix": "M+" },
+  { "value": 99.4, "prefix": "", "suffix": "%" },
+  { "value": 1.5, "prefix": "< ", "suffix": "s" }
+]
+No markdown, just raw JSON.`;
+        
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().replace(/```json/gi, '').replace(/```/g, '').trim();
+        const data = JSON.parse(text);
+        
+        if (Array.isArray(data) && data.length === 4) {
+          setStats(prev => prev.map((s, i) => ({
+            ...s,
+            value: data[i].value,
+            prefix: data[i].prefix || "",
+            suffix: data[i].suffix || ""
+          })));
+        }
+      } catch (err) {
+        console.error("Failed to fetch stats from Gemini, using mock data.", err);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  return (
+    <section className="relative z-10 py-12 px-6" style={{ borderTop: "1px solid rgba(79,142,247,0.08)", borderBottom: "1px solid rgba(79,142,247,0.08)" }}>
+      <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+        {stats.map((s, i) => (
+          <div
+            key={s.label}
+            className="text-center"
+            style={{ animation: `slide-up 0.6s ease ${0.1 + i * 0.1}s both` }}
+          >
+            <div
+              className="text-3xl font-bold mb-1"
+              style={{ fontFamily: "var(--font-display)", fontStyle: "italic", color: s.color }}
+            >
+              <AnimatedNumber value={s.value} prefix={s.prefix} suffix={s.suffix} isFloat={s.isFloat} />
+            </div>
+            <div className="text-xs" style={{ color: "var(--muted-fg)", fontFamily: "var(--font-body)" }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -677,7 +750,7 @@ function MapEventHandler({ onMove }: { onMove: (lat: number, lng: number) => voi
 
 
 // ── New Dashboard Section ───────────────────────────────────────────────────
-function DashboardSection() {
+function DashboardSection({ initialQuery, setInitialQuery }: { initialQuery?: string, setInitialQuery?: (q: string) => void }) {
   const particleRef = useRef<any>(null);
   const [isFalling, setIsFalling] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'model', content: string}[]>([]);
@@ -689,16 +762,28 @@ function DashboardSection() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async (e?: React.FormEvent) => {
+  useEffect(() => {
+    if (initialQuery && initialQuery.trim()) {
+      setInputText(initialQuery);
+      const timer = setTimeout(() => {
+        handleSend(undefined, initialQuery);
+        if (setInitialQuery) setInitialQuery("");
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [initialQuery]);
+
+  const handleSend = async (e?: React.FormEvent, queryOverride?: string) => {
     e?.preventDefault();
-    if (!inputText.trim() || isStreaming) return;
+    const userMsg = (queryOverride ?? inputText).trim();
+    if (!userMsg || isStreaming) return;
     
     if (messages.length === 0 && particleRef.current) {
       particleRef.current.toggleDrop();
       setIsFalling(true);
     }
     
-    const userMsg = inputText.trim();
+    if (!queryOverride) setInputText("");
     setInputText("");
     setMessages(prev => [...prev, { role: 'user', content: userMsg }, { role: 'model', content: "" }]);
     setIsStreaming(true);
@@ -708,28 +793,45 @@ function DashboardSection() {
         role: m.role,
         parts: [{ text: m.content }]
       }));
-      
-      const chat = model.startChat({ history });
-      const result = await chat.sendMessageStream(userMsg);
 
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
+      const streamFromModel = async (activeModel: typeof model) => {
+        const chat = activeModel.startChat({ history });
+        const result = await chat.sendMessageStream(userMsg);
+        for await (const chunk of result.stream) {
+          const chunkText = chunk.text();
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastIndex = newMessages.length - 1;
+            newMessages[lastIndex] = { ...newMessages[lastIndex], content: newMessages[lastIndex].content + chunkText };
+            return newMessages;
+          });
+        }
+      };
+
+      try {
+        await streamFromModel(model);
+      } catch (primaryErr) {
+        console.warn("Primary API key failed, retrying with fallback key...", primaryErr);
         setMessages(prev => {
           const newMessages = [...prev];
           const lastIndex = newMessages.length - 1;
-          newMessages[lastIndex].content += chunkText;
+          newMessages[lastIndex] = { ...newMessages[lastIndex], content: "" };
           return newMessages;
         });
+        try {
+          await streamFromModel(fallbackModel);
+        } catch (fallbackErr) {
+          console.error("Both API keys failed:", fallbackErr);
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastIndex = newMessages.length - 1;
+            newMessages[lastIndex] = { ...newMessages[lastIndex], content: "**Error:** Both API keys are unavailable. " + (fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)) };
+            return newMessages;
+          });
+        }
       }
     } catch (err) {
       console.error(err);
-      setMessages(prev => {
-        const newMessages = [...prev];
-        const lastIndex = newMessages.length - 1;
-        newMessages[lastIndex].content += "\n\n**Error:** Failed to connect to WeatherGPT. Please check your API key.";
-
-        return newMessages;
-      });
     } finally {
       setIsStreaming(false);
     }
@@ -743,7 +845,7 @@ function DashboardSection() {
   };
 
   return (
-    <div className="pt-24 pb-32 px-6 max-w-4xl mx-auto min-h-screen flex flex-col relative overflow-hidden">
+    <div className="h-[100dvh] w-full flex flex-col relative overflow-hidden">
       
       {/* Particle Text Container */}
       <div 
@@ -757,18 +859,19 @@ function DashboardSection() {
 
       {/* Chat History Container */}
       {messages.length > 0 && (
-        <div className="flex-1 w-full flex flex-col gap-6 overflow-y-auto pb-12 pt-8 scroll-smooth relative" style={{ fontFamily: "var(--font-body)", zIndex: 10 }}>
+        <div className="flex-1 w-full overflow-y-auto pt-24 pb-32 scroll-smooth relative" style={{ fontFamily: "var(--font-body)", zIndex: 10 }}>
+          <div className="max-w-4xl mx-auto w-full px-6 flex flex-col gap-6">
           {messages.map((msg, i) => (
             <div key={i} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div 
                 className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-5 shadow-sm leading-relaxed ${msg.role === 'user' ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                 style={{ 
                   background: msg.role === 'user' ? 'var(--primary)' : 'var(--glass-bg)',
-                  color: msg.role === 'user' ? '#fff' : 'var(--fg)',
+                  color: msg.role === 'user' ? 'var(--primary-foreground)' : 'var(--fg)',
                   border: msg.role === 'model' ? '1px solid var(--border-color)' : 'none',
                 }}
               >
-                <div className="prose prose-sm dark:prose-invert max-w-none">
+                <div className="prose prose-sm md:prose-base max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-blue-500 hover:prose-a:text-blue-600 prose-strong:font-semibold prose-p:text-inherit prose-headings:text-inherit prose-strong:text-inherit prose-li:text-inherit text-inherit">
                   {msg.role === 'model' && msg.content === "" ? (
                     <span className="animate-pulse">Thinking...</span>
                   ) : (
@@ -779,6 +882,7 @@ function DashboardSection() {
             </div>
           ))}
           <div ref={messagesEndRef} />
+          </div>
         </div>
       )}
       
@@ -788,7 +892,7 @@ function DashboardSection() {
         className="absolute bottom-8 left-6 right-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[600px] rounded-full p-2 pl-6 flex items-center gap-4 shadow-lg border"
         style={{ background: "var(--glass-bg)", borderColor: "var(--border-color)", backdropFilter: "blur(24px)", zIndex: 100 }}
       >
-        <span className="text-red-500">📍</span>
+        <img src="/logo.png" alt="WeatherGPT" className="w-6 h-6 object-contain opacity-80" />
         <input 
           type="text" 
           value={inputText}
@@ -807,11 +911,11 @@ function DashboardSection() {
                 handleToggle();
               }
             }}
-            disabled={isStreaming || (!inputText.trim() && messages.length > 0)}
-            className={`w-10 h-10 rounded-full flex items-center justify-center text-white shadow-md transition-transform ${isStreaming ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
-            style={{ background: (isFalling && !inputText.trim() && messages.length === 0) ? "#27272a" : "var(--primary)" }}
+            disabled={isStreaming || (isFalling && messages.length === 0) || (!inputText.trim() && messages.length > 0)}
+            className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-transform ${(isStreaming || (isFalling && messages.length === 0)) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
           >
-            {(isFalling && !inputText.trim() && messages.length === 0) ? "↺" : "↗"}
+            {(isStreaming || (isFalling && messages.length === 0)) ? <LoadingSpinner size={20} color="currentColor" /> : "↗"}
           </button>
         </div>
       </form>
@@ -885,9 +989,9 @@ function WeatherMapSection() {
               </div>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-8">
+            <div className="flex flex-col gap-6">
               {/* Interactive Radar Map */}
-              <div className="flex-1 h-72 rounded-2xl overflow-hidden relative shadow-inner z-10" style={{ border: "1px solid var(--border-color)", background: "var(--bg)" }}>
+              <div className="w-full h-80 rounded-2xl overflow-hidden relative shadow-inner z-10" style={{ border: "1px solid var(--border-color)", background: "var(--bg)" }}>
                 <MapContainer 
                   center={[20.5937, 78.9629]} 
                   zoom={4} 
@@ -907,31 +1011,31 @@ function WeatherMapSection() {
               </div>
 
               {/* Current Details */}
-              <div className="w-full lg:w-56 flex flex-col gap-4 justify-center">
-                <div className="text-5xl font-bold mb-2 tracking-tight" style={{ color: "var(--fg)" }}>
-                  {current.temperature_2m !== undefined ? current.temperature_2m : "--"}<span className="text-2xl text-[var(--muted-fg)] ml-1">°C</span>
+              <div className="w-full flex flex-col md:flex-row gap-6 items-center justify-between px-2 pt-2">
+                <div className="text-6xl font-bold tracking-tight" style={{ color: "var(--fg)" }}>
+                  {current.temperature_2m !== undefined ? current.temperature_2m : "--"}<span className="text-3xl text-[var(--muted-fg)] ml-1">°C</span>
                 </div>
                 
-                <div className="flex flex-col gap-3">
-                  <div className="flex justify-between items-center text-sm border-b border-[var(--border-color)] pb-2">
-                    <span style={{ color: "var(--muted-fg)" }}>Feels like</span>
-                    <span className="font-semibold" style={{ color: "var(--fg)" }}>{current.apparent_temperature !== undefined ? current.apparent_temperature : "--"} °C</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6 flex-1 md:ml-8 w-full">
+                  <div className="flex flex-col items-center md:items-start">
+                    <span className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted-fg)", fontFamily: "var(--font-body)" }}>Feels like</span>
+                    <span className="font-semibold text-lg" style={{ color: "var(--fg)" }}>{current.apparent_temperature !== undefined ? current.apparent_temperature : "--"} °C</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm border-b border-[var(--border-color)] pb-2">
-                    <span style={{ color: "var(--muted-fg)" }}>Precipitation</span>
-                    <span className="font-semibold" style={{ color: "var(--fg)" }}>{current.precipitation !== undefined ? current.precipitation : "--"} mm</span>
+                  <div className="flex flex-col items-center md:items-start">
+                    <span className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted-fg)", fontFamily: "var(--font-body)" }}>Precipitation</span>
+                    <span className="font-semibold text-lg" style={{ color: "var(--fg)" }}>{current.precipitation !== undefined ? current.precipitation : "--"} mm</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm border-b border-[var(--border-color)] pb-2">
-                    <span style={{ color: "var(--muted-fg)" }}>Wind speed</span>
-                    <span className="font-semibold" style={{ color: "var(--fg)" }}>{current.wind_speed_10m !== undefined ? current.wind_speed_10m : "--"} km/h</span>
+                  <div className="flex flex-col items-center md:items-start">
+                    <span className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted-fg)", fontFamily: "var(--font-body)" }}>Wind speed</span>
+                    <span className="font-semibold text-lg" style={{ color: "var(--fg)" }}>{current.wind_speed_10m !== undefined ? current.wind_speed_10m : "--"} km/h</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm border-b border-[var(--border-color)] pb-2">
-                    <span style={{ color: "var(--muted-fg)" }}>Humidity</span>
-                    <span className="font-semibold" style={{ color: "var(--fg)" }}>{current.relative_humidity_2m !== undefined ? current.relative_humidity_2m : "--"} %</span>
+                  <div className="flex flex-col items-center md:items-start">
+                    <span className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted-fg)", fontFamily: "var(--font-body)" }}>Humidity</span>
+                    <span className="font-semibold text-lg" style={{ color: "var(--fg)" }}>{current.relative_humidity_2m !== undefined ? current.relative_humidity_2m : "--"} %</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span style={{ color: "var(--muted-fg)" }}>Pressure</span>
-                    <span className="font-semibold" style={{ color: "var(--fg)" }}>{current.pressure_msl !== undefined ? current.pressure_msl : "--"} hPa</span>
+                  <div className="flex flex-col items-center md:items-start">
+                    <span className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted-fg)", fontFamily: "var(--font-body)" }}>Pressure</span>
+                    <span className="font-semibold text-lg" style={{ color: "var(--fg)" }}>{current.pressure_msl !== undefined ? current.pressure_msl : "--"} hPa</span>
                   </div>
                 </div>
               </div>
@@ -939,16 +1043,14 @@ function WeatherMapSection() {
           </div>
 
           {/* 24 Hours Forecast */}
-          <div className="rounded-3xl p-6 shadow-sm border overflow-x-auto" style={{ background: "var(--glass-bg)", borderColor: "var(--border-color)", backdropFilter: "blur(24px)" }}>
+          <div className="rounded-3xl p-6 shadow-sm border overflow-x-auto flex-1 flex flex-col" style={{ background: "var(--glass-bg)", borderColor: "var(--border-color)", backdropFilter: "blur(24px)" }}>
              <div className="flex gap-6 mb-8">
                <button className="text-sm font-semibold text-[var(--primary)] flex items-center gap-2">
                  <span className="w-2.5 h-2.5 rounded-full bg-[var(--primary)] shadow-[0_0_8px_var(--primary)]"></span> 24 hours forecast
                </button>
-               <button className="text-sm font-medium text-[var(--muted-fg)] transition-colors hover:text-[var(--fg)]">7 days forecast</button>
-               <button className="text-sm font-medium text-[var(--muted-fg)] transition-colors hover:text-[var(--fg)]">Historical 7 days</button>
              </div>
 
-             <div className="min-w-[600px] w-full">
+             <div className="min-w-[600px] w-full flex-1 flex flex-col justify-between">
                {/* Table header (hours) */}
                <div className="grid grid-cols-8 gap-4 text-center mb-6 text-sm font-medium" style={{ color: "var(--muted-fg)" }}>
                  {next8Hours.map((t: string, i: number) => (
@@ -957,11 +1059,38 @@ function WeatherMapSection() {
                </div>
                {/* Weather Icons */}
                <div className="grid grid-cols-8 gap-4 text-center mb-6">
-                 {[...Array(8)].map((_, i) => (
-                   <div key={i} className="flex justify-center text-blue-400">
-                     <SunIcon className="w-6 h-6 text-yellow-400" />
-                   </div>
-                 ))}
+                 {next8Humidities.map((hum: number, i: number) => {
+                    if (hum === undefined) return <div key={i} className="flex justify-center"><SunIcon className="w-6 h-6 text-amber-300" /></div>;
+                    const temp = next8Temps[i] || 25;
+                    let iconType = "sun";
+                    
+                    if (hum > 90 && temp > 28) {
+                        iconType = "thunder";
+                    } else if (hum > 80) {
+                        iconType = "rain";
+                    } else if (hum > 55) {
+                        iconType = "cloud";
+                    } else {
+                        iconType = "sun";
+                    }
+                    
+                    const renderIcon = () => {
+                        switch (iconType) {
+                            case "thunder": return <ThunderIcon className="w-6 h-6 text-violet-300" />;
+                            case "rain": return <RainIcon className="w-6 h-6 text-blue-400" />;
+                            case "cloud": return <CloudIcon className="w-7 h-5 text-blue-300" />;
+                            case "sun":
+                            default:
+                                return <SunIcon className="w-6 h-6 text-amber-300" />;
+                        }
+                    };
+
+                    return (
+                       <div key={i} className="flex justify-center items-center h-6">
+                         {renderIcon()}
+                       </div>
+                    );
+                 })}
                </div>
                {/* Temp */}
                <div className="grid grid-cols-8 gap-4 text-center mb-6 text-base font-bold" style={{ color: "var(--fg)" }}>
@@ -981,18 +1110,13 @@ function WeatherMapSection() {
         </div>
 
                 {/* Right Sidebar (Alerts/Reports) */}
-        <div className="rounded-3xl p-6 shadow-sm border h-full overflow-y-auto" style={{ background: "var(--glass-bg)", borderColor: "var(--border-color)", backdropFilter: "blur(24px)", maxHeight: "100%" }}>
+        <div className="rounded-3xl p-6 shadow-sm border flex-1" style={{ background: "var(--glass-bg)", borderColor: "var(--border-color)", backdropFilter: "blur(24px)" }}>
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-color)]">
             <h3 className="font-semibold text-lg" style={{ color: "var(--fg)", fontFamily: "var(--font-display)" }}>NDMA Alerts</h3>
-            <button className="text-[var(--muted-fg)] hover:text-[var(--fg)] transition-colors">&gt;&gt;</button>
+
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-8">
-            <button className="px-4 py-1.5 rounded-full text-xs font-semibold bg-[var(--primary)] text-white shadow-md">All</button>
-            <button className="px-4 py-1.5 rounded-full text-xs font-semibold border text-[var(--muted-fg)] hover:text-[var(--fg)] hover:bg-[rgba(255,255,255,0.05)] transition-all" style={{ borderColor: "var(--border-color)" }}>Alerts</button>
-            <button className="px-4 py-1.5 rounded-full text-xs font-semibold border text-[var(--muted-fg)] hover:text-[var(--fg)] hover:bg-[rgba(255,255,255,0.05)] transition-all" style={{ borderColor: "var(--border-color)" }}>Cases</button>
-            <button className="px-4 py-1.5 rounded-full text-xs font-semibold border text-[var(--muted-fg)] hover:text-[var(--fg)] hover:bg-[rgba(255,255,255,0.05)] transition-all" style={{ borderColor: "var(--border-color)" }}>Reports</button>
-          </div>
+
 
           <div className="flex flex-col gap-6">
             {alerts.length === 0 ? (
@@ -1042,6 +1166,7 @@ function WeatherMapSection() {
 }
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [initialQuery, setInitialQuery] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1071,8 +1196,7 @@ export default function App() {
           transition: 'width 0.38s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
           marginLeft: isSidebarOpen && currentPage === "Dashboard" ? '280px' : '0',
           width: isSidebarOpen && currentPage === "Dashboard" ? 'calc(100% - 280px)' : '100%',
-          minHeight: '100vh',
-          transform: 'translateZ(0)' 
+          minHeight: '100vh'
         }}
       >
       <Navbar 
@@ -1080,6 +1204,7 @@ export default function App() {
         toggleTheme={() => setIsDark(!isDark)} 
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
+        isSidebarOpen={isSidebarOpen}
       />
 
       {currentPage === "Home" ? (
@@ -1134,61 +1259,13 @@ export default function App() {
 
         {/* Search */}
         <div style={{ animation: "slide-up 0.7s cubic-bezier(0.22,1,0.36,1) 0.3s both" }}>
-          <AnimatedSearchBar setCurrentPage={setCurrentPage} />
+          <AnimatedSearchBar setCurrentPage={setCurrentPage} setInitialQuery={setInitialQuery} />
         </div>
 
-        {/* Hint tags */}
-        <div
-          className="flex flex-wrap justify-center gap-2 mt-5"
-          style={{ animation: "fade-in 0.6s ease 0.6s both" }}
-        >
-          {["Cyclone season outlook", "Best travel month for Goa", "UV forecast Mumbai", "Cyclone tracker Odisha"].map((tag) => (
-            <button
-              key={tag}
-              className="px-3 py-1.5 rounded-full text-xs transition-all duration-200"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "var(--muted-fg)",
-                fontFamily: "var(--font-body)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--border-color)";
-                e.currentTarget.style.borderColor = "rgba(79,142,247,0.3)";
-                e.currentTarget.style.color = "#93c5fd";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                e.currentTarget.style.color = "#6b7299";
-              }}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
+
       </section>
 
-      {/* ── Stats strip ── */}
-      <section className="relative z-10 py-12 px-6" style={{ borderTop: "1px solid rgba(79,142,247,0.08)", borderBottom: "1px solid rgba(79,142,247,0.08)" }}>
-        <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
-          {STATS.map((s, i) => (
-            <div
-              key={s.label}
-              className="text-center"
-              style={{ animation: `slide-up 0.6s ease ${0.1 + i * 0.1}s both` }}
-            >
-              <div
-                className="text-3xl font-bold mb-1"
-                style={{ fontFamily: "var(--font-display)", fontStyle: "italic", color: s.color }}
-              >
-                {s.value}
-              </div>
-              <div className="text-xs" style={{ color: "var(--muted-fg)", fontFamily: "var(--font-body)" }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <StatsSection />
 
       {/* ── Live weather grid ── */}
       <section className="relative z-10 py-20 px-6">
@@ -1217,73 +1294,66 @@ export default function App() {
         </div>
       </section>
 
-      {/* ── AI demo + Features split ── */}
+      {/* ── AI demo Section ── */}
       <section className="relative z-10 py-20 px-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
-          {/* Left: Chat demo */}
-          <div style={{ animation: "slide-up 0.7s ease 0.1s both" }}>
-            <div className="mb-2">
-              <span
-                className="text-xs font-medium uppercase tracking-widest"
-                style={{ color: "var(--primary)", fontFamily: "var(--font-body)" }}
-              >
-                Conversational AI
-              </span>
-            </div>
-            <h2
-              className="mb-4"
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: "clamp(1.8rem, 3vw, 2.6rem)",
-                color: "var(--fg)",
-                fontStyle: "italic",
-                lineHeight: 1.2,
-              }}
+        <div className="max-w-4xl mx-auto flex flex-col items-center text-center">
+          <div className="mb-2" style={{ animation: "slide-up 0.7s ease 0.1s both" }}>
+            <span
+              className="text-xs font-medium uppercase tracking-widest"
+              style={{ color: "var(--primary)", fontFamily: "var(--font-body)" }}
             >
-              Just ask, like you'd ask a friend
-            </h2>
-            <p className="text-sm mb-8 leading-relaxed" style={{ color: "var(--muted-fg)" }}>
-              No more decoding meteorological charts. WeatherGPT understands context,
-              intent, and nuance — giving you answers that actually help you plan.
-            </p>
+              Conversational AI
+            </span>
+          </div>
+          <h2
+            className="mb-4"
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "clamp(1.8rem, 3vw, 2.6rem)",
+              color: "var(--fg)",
+              fontStyle: "italic",
+              lineHeight: 1.2,
+              animation: "slide-up 0.7s ease 0.2s both"
+            }}
+          >
+            Just ask, like you'd ask a friend
+          </h2>
+          <p className="text-sm mb-12 leading-relaxed max-w-2xl" style={{ color: "var(--muted-fg)", animation: "slide-up 0.7s ease 0.3s both" }}>
+            No more decoding meteorological charts. WeatherGPT understands context,
+            intent, and nuance — giving you answers that actually help you plan.
+          </p>
+          <div className="w-full text-left" style={{ animation: "slide-up 0.7s ease 0.4s both" }}>
             <ChatDemo />
           </div>
+        </div>
+      </section>
 
-          {/* Right: Feature grid */}
-          <div style={{ animation: "slide-up 0.7s ease 0.2s both" }}>
+      {/* ── Features Section ── */}
+      <section className="relative z-10 py-12 px-6 pb-24">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12" style={{ animation: "slide-up 0.7s ease 0.2s both" }}>
             <div className="mb-2">
               <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "#7c3aed", fontFamily: "var(--font-body)" }}>
                 Everything you need
               </span>
             </div>
             <h2
-              className="mb-8"
               style={{
                 fontFamily: "var(--font-display)",
                 fontSize: "clamp(1.8rem, 3vw, 2.6rem)",
                 color: "var(--fg)",
                 fontStyle: "italic",
-                
                 lineHeight: 1.2,
               }}
             >
               Built for every kind of weather question
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {FEATURES.slice(0, 4).map((f, i) => (
-                <FeatureTile key={f.title} feature={f} delay={i * 0.1} />
-              ))}
-            </div>
           </div>
-        </div>
-      </section>
-
-      {/* ── Full features row ── */}
-      <section className="relative z-10 py-12 px-6 pb-24">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {FEATURES.slice(4).map((f, i) => (
-            <FeatureTile key={f.title} feature={f} delay={i * 0.1} />
-          ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {FEATURES.map((f, i) => (
+              <FeatureTile key={f.title} feature={f} delay={i * 0.1} />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -1305,20 +1375,8 @@ export default function App() {
           />
 
           {/* Animated ring */}
-          <div className="relative mx-auto mb-8" style={{ width: 80, height: 80 }}>
-            <div
-              className="absolute inset-0 rounded-full animate-spin-slow"
-              style={{
-                background: "conic-gradient(from 0deg, transparent 0%, var(--primary) 50%, transparent 100%)",
-                opacity: 0.3,
-              }}
-            />
-            <div
-              className="absolute inset-2 rounded-full flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, var(--primary), #7c3aed)" }}
-            >
-              <SunIcon className="w-8 h-8 text-white animate-bounce-gentle" />
-            </div>
+          <div className="relative mx-auto mb-8" style={{ width: 156, height: 120 }}>
+            <ParticleMorph className="w-full h-full" particleColor={isDark ? "#dbe6f0" : "#000000"} particleSize={0.1} />
           </div>
 
           <h2
@@ -1350,25 +1408,13 @@ export default function App() {
             >
               Start for free
             </button>
-            <button
-              className="px-8 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200"
-              style={{
-                background: "transparent",
-                color: "var(--card-fg)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                fontFamily: "var(--font-body)",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(79,142,247,0.4)"; e.currentTarget.style.color = "#e8eaf6"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "#c5c9e0"; }}
-            >
-              View API docs
-            </button>
+
           </div>
         </div>
       </section>
         </>
       ) : currentPage === "Dashboard" ? (
-        <DashboardSection />
+        <DashboardSection initialQuery={initialQuery} setInitialQuery={setInitialQuery} />
       ) : currentPage === "Weather Map" ? (
         <WeatherMapSection />
 
