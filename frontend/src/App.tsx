@@ -1209,9 +1209,8 @@ export default function App() {
 
       {currentPage === "Home" ? (
         <>
-          {/* ── Hero ── */}
-      <section className="relative z-10 pt-36 pb-24 px-6 text-center">
-        {/* Badge */}
+          {/* ── Hero Section ── */}
+      <section className="relative z-10 flex flex-col items-center text-center px-4 sm:px-6 pt-24 sm:pt-32 pb-16 sm:pb-24 overflow-hidden">
         <div
           className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-8"
           style={{
@@ -1328,8 +1327,8 @@ export default function App() {
         </div>
       </section>
 
-      {/* ── Features Section ── */}
-      <section className="relative z-10 py-12 px-6 pb-24">
+      {/* ── Features Grid ── */}
+      <section className="relative z-10 py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12" style={{ animation: "slide-up 0.7s ease 0.2s both" }}>
             <div className="mb-2">
@@ -1358,9 +1357,9 @@ export default function App() {
       </section>
 
       {/* ── CTA Banner ── */}
-      <section className="relative z-10 py-24 px-6">
+      <section className="relative z-10 py-16 sm:py-24 px-4 sm:px-6">
         <div
-          className="max-w-4xl mx-auto rounded-3xl p-12 text-center relative overflow-hidden gradient-border"
+          className="max-w-4xl mx-auto rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden gradient-border"
           style={{
             background: "var(--glass-bg)",
             backdropFilter: "blur(24px)",
@@ -1383,19 +1382,19 @@ export default function App() {
             className="mb-4 relative z-10"
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: "clamp(2rem, 4vw, 3.2rem)",
+              fontSize: "clamp(2rem, 5vw, 3.2rem)",
               color: "var(--fg)",
               fontStyle: "italic",
             }}
           >
             Ready to understand the weather?
           </h2>
-          <p className="mb-8 relative z-10 text-base" style={{ color: "var(--muted-fg)", maxWidth: 460, margin: "0 auto 2rem" }}>
+          <p className="mb-8 relative z-10 text-sm sm:text-base px-4 sm:px-0" style={{ color: "var(--muted-fg)", maxWidth: 460, margin: "0 auto 2rem" }}>
             Join 2.4 million people who get smarter weather insights every day with WeatherGPT.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10 mt-8">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center relative z-10 mt-8 w-full sm:w-auto px-4 sm:px-0">
             <button
-              className="px-8 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200"
               style={{
                 background: "linear-gradient(135deg, var(--primary), #7c3aed)",
                 color: "white",
@@ -1408,7 +1407,6 @@ export default function App() {
             >
               Start for free
             </button>
-
           </div>
         </div>
       </section>
